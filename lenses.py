@@ -2262,3 +2262,89 @@ class Psi_eSIS(PsiGeneral):
             ddpsi = self.ddpsi_vec_a0(x1, x2)
             ddpsi = self.rotate_hessian(*ddpsi)
         return ddpsi
+
+class Psi_SC(PsiAxisym):
+    
+    def __init__(self, p_phys={}, p_prec={}):
+        super().__init__(p_phys, p_prec)
+        
+        self.hasDeriv1 = True
+        self.hasDeriv2 = True
+
+        self.psi0 = self.p_phys['psi0']  # prefactors are by default 1. 
+        self.xs = self.p_phys['xs']
+        self.alpha_dash = np.sqrt(9.1) * 1E-1 # to keep track of constant terms in denominator, its converted to alpha squared such that it goes along the r/rc term
+
+    def default_params(self):
+        p_phys = {'name' : 'Solitonic core',
+                  'psi0' : 1.0, 
+                  'xs'	: 1.0
+                  }
+        p_prec = {}
+        return p_phys, p_prec
+
+    def psi_x(self, x):
+        """
+        Lensing Potential when treating soliton as an individual lens
+
+        CHECK INTEGRATION LIMIT
+        """
+        u = x #/ self.xs
+
+        return self.psi0 * -0.0000222000222000222*(6508 + 25399*u**2*self.alpha_dash**2 + 44154*u**4*self.alpha_dash**4 + 39963*u**6*self.alpha_dash**6 + 18480*u**8*self.alpha_dash**8 + 3465*u**10*self.alpha_dash**10 - 6508*(1 + u**2*self.alpha_dash**2)**5.5 + 3465*(1 + u**2*self.alpha_dash**2)**5.5*np.log(2/(1 + np.sqrt(1 + u**2*self.alpha_dash**2))))/(self.alpha_dash**2*(1 + u**2*self.alpha_dash**2)**5.5)
+
+
+    def dpsi_dx(self, x):
+        """
+        dpsi_dx when treating soliton as an individual lens
+        """
+        u = x #/ self.xs
+
+        return self.psi0 * (u*(7 + u**12*self.alpha_dash**12 + 6*np.sqrt(1 + u**2*self.alpha_dash**2) + u**10*self.alpha_dash**10*(7 + np.sqrt(1 + u**2*self.alpha_dash**2)) + 3*u**8*self.alpha_dash**8*(7 + 2*np.sqrt(1 + u**2*self.alpha_dash**2)) + 5*u**6*self.alpha_dash**6*(7 + 3*np.sqrt(1 + u**2*self.alpha_dash**2)) + 5*u**4*self.alpha_dash**4*(7 + 4*np.sqrt(1 + u**2*self.alpha_dash**2)) + 3*u**2*self.alpha_dash**2*(7 + 5*np.sqrt(1 + u**2*self.alpha_dash**2))))/(13.*(1 + u**2*self.alpha_dash**2)**6.5*(1 + np.sqrt(1 + u**2*self.alpha_dash**2)))
+
+    def ddpsi_ddx(self, x):
+        """
+        ddpsi_ddx when treating soliton as an individual lens
+        """
+        u = x #/ self.xs
+        
+        return self.psi0 * (13*(1 + np.sqrt(1 + u**2*self.alpha_dash**2)) - u**14*self.alpha_dash**14*(2 + np.sqrt(1 + u**2*self.alpha_dash**2)) - 35*u**6*self.alpha_dash**6*(4 + 3*np.sqrt(1 + u**2*self.alpha_dash**2)) - 7*u**10*self.alpha_dash**10*(8 + 5*np.sqrt(1 + u**2*self.alpha_dash**2)) - 7*u**2*self.alpha_dash**2*(6 + 7*np.sqrt(1 + u**2*self.alpha_dash**2)) - u**12*self.alpha_dash**12*(16 + 9*np.sqrt(1 + u**2*self.alpha_dash**2)) - 7*u**8*self.alpha_dash**8*(16 + 11*np.sqrt(1 + u**2*self.alpha_dash**2)) - 7*u**4*self.alpha_dash**4*(16 + 13*np.sqrt(1 + u**2*self.alpha_dash**2)))/(13.*(1 + u**2*self.alpha_dash**2)**7.5*(1 + np.sqrt(1 + u**2*self.alpha_dash**2))**2)
+
+
+class Psi_FDM(PsiAxisym):
+
+    def __init__(self, p_phys={}, p_prec={}):
+        super().__init__(p_phys, p_prec)
+        
+        self.hasDeriv1 = True
+        self.hasDeriv2 = True
+
+        self.xs_NFW = self.p_phys['xs_NFW']
+        self.psi0_NFW = self.p_phys['psi0_NFW']
+
+        self.xs_SC = self.p_phys['xs_SC']
+        self.psi0_SC = self.p_phys['psi0_SC']
+        
+        self.SC = Psi_SC(p_phys={'xs':self.xs_SC, 'psi0':self.psi0_SC})
+        self.NFW = Psi_NFW(p_phys={'xs':self.xs_NFW, 'psi0':self.psi0_NFW})
+
+    def default_params(self):
+        p_phys = {'name' : 'FDM',
+                  'psi0_SC' : 1.0, 
+                  'psi0_NFW': 1.0,
+                  'xs_NFW'	: 1.0,
+                  'xs_SC'	: 1.0
+                  }
+
+        p_prec = {}
+        return p_phys, p_prec
+
+    def psi_x(self, x):
+        # print(self.SC.psi0, self.NFW.psi0)
+        return self.SC.psi_x(x) + self.NFW.psi_x(x)
+        
+    def dpsi_dx(self, x):
+        return self.SC.dpsi_dx(x) + self.NFW.dpsi_dx(x)
+        
+    def ddpsi_ddx(self, x):
+        return self.SC.ddpsi_ddx(x) + self.NFW.ddpsi_ddx(x)
